@@ -1,0 +1,6 @@
+path_dir_data: "/home/user/karacora/self-supervised-learning-of-depth-and-motion/data"
+path_dir_exps: "/home/user/karacora/self-supervised-learning-of-depth-and-motion/experiments"
+path_dir_weights: "/home/user/karacora/self-supervised-learning-of-depth-and-motion/weights"
+
+num_workers_dataloading: 4
+seed_rngs: 42

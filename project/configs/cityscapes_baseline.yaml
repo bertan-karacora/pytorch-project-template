@@ -1,0 +1,80 @@
+data:
+    training:
+        dataset:
+            name: CityscapesTriplet
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: Resize
+                          kwargs:
+                              size: [256, 512]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                targets: null
+            kwargs:
+                stride: 1
+                dilation: 1
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: true
+                pin_memory: true
+    validation:
+        dataset:
+            name: CityscapesTriplet
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: Resize
+                          kwargs:
+                              size: [256, 512]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                targets: null
+            kwargs:
+                stride: 1
+                dilation: 1
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: false
+                pin_memory: true
+    test:
+        dataset:
+            name: CityscapesTriplet
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: Resize
+                          kwargs:
+                              size: [256, 512]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                targets: null
+            kwargs:
+                stride: 1
+                dilation: 1
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: false
+                pin_memory: true
+model:
+    decoder_depth:
+        kwargs:
+        shape_input: [256, 128, 256]
+logging:
+    tqdm:
+        period: 10
