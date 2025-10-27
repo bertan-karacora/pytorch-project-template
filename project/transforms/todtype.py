@@ -1,5 +1,10 @@
+import logging
+
 import torch
 import torchvision.transforms.v2 as tv_transforms
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class ToDtype(tv_transforms.Transform):
@@ -18,6 +23,6 @@ class ToDtype(tv_transforms.Transform):
             scale=self.scale,
         )
 
-    def _transform(self, features, params):
-        features_transformed = self.transform_tv(features)
-        return features_transformed
+    def _transform(self, inpt):
+        output = self.transform_tv(inpt)
+        return output

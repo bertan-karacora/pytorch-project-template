@@ -1,12 +1,17 @@
+import logging
+
 import torch
 
-import self_supervised_learning_of_depth_and_motion.libs.utils_data as utils_data
+import project.libs.factory as factory
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def create_collation_default(dict_transform):
-    transform = utils_data.create_transform(dict_transform)
+    transform = factory.create_transform(dict_transform)
 
-    def collate_fn(batch):
+    def collate(batch):
         return transform(*torch.utils.data.default_collate(batch))
 
-    return collate_fn
+    return collate

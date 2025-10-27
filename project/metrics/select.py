@@ -1,6 +1,11 @@
+import logging
+
 import torch
 
-import self_supervised_learning_of_depth_and_motion.libs.utils_import as utils_import
+import project.libs.utils_import as utils_import
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Select(torch.nn.Module):
@@ -15,6 +20,6 @@ class Select(torch.nn.Module):
         class_module = utils_import.import_metric(self.name_module)
         self.module = class_module(**self.kwargs_module)
 
-    def forward(self, input, target):
-        output = self.module(input[self.key], target)
+    def forward(self, inpt, target):
+        output = self.module(inpt[self.key], target)
         return output

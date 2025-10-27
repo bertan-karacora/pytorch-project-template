@@ -3,7 +3,7 @@ from pathlib import Path
 
 import torch
 
-import self_supervised_learning_of_depth_and_motion.libs.utils_io as utils_io
+import project.libs.utils_io as utils_io
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -20,8 +20,7 @@ class Cityscapes(torch.utils.data.Dataset):
     # id 19 corresponds to 20th frame
     id_frame_annotated = 19
     names_city_split = {
-        "training": ["aachen", "bochum", "bremen", "cologne", "darmstadt", "dusseldorf", "erfurt", "hamburg", "hanover", "jena"]
-        + ["krefeld", "monchengladbach", "strasbourg", "stuttgart", "tubingen", "ulm", "weimar", "zurich"],
+        "training": ["aachen", "bochum", "bremen", "cologne", "darmstadt", "dusseldorf", "erfurt", "hamburg", "hanover", "jena"] + ["krefeld", "monchengladbach", "strasbourg", "stuttgart", "tubingen", "ulm", "weimar", "zurich"],
         "validation": ["berlin", "bielefeld", "bonn", "leverkusen", "mainz", "munich"],
         "test": ["frankfurt", "lindau", "munster"],
     }

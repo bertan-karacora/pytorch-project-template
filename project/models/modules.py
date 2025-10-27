@@ -1,6 +1,10 @@
+import logging
 import operator
 
 import torch
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Sum(torch.nn.Module):
@@ -109,4 +113,43 @@ class Normalize(torch.nn.Module):
 
     def forward(self, input):
         output = torch.nn.functional.normalize(input, p=self.p_norm, dim=self.dim)
+        return output
+
+
+class NormPair(torch.nn.Module):
+    def __init__(self, mode="PN", scale=10):
+        """
+        mode:
+          'PN'   : Original version
+          'PN-SI'  : Scale-Individually version
+          'PN-SCS' : Scale-and-Center-Simultaneously version
+
+        ('SCS'-mode is not in the paper but we found it works well in practice,
+          especially for GCN and GAT.)
+        PairNorm is typically used after each graph convolution operation.
+        """
+        super().__init__()
+
+        self.mode = mode
+        self.scale = scale
+
+        # Scale can be set based on origina data, and also the current feature lengths.
+        # We leave the experiments to future. A good pool we used for choosing scale:
+        # [0.1, 1, 10, 50, 100]
+
+    def forward(self, input):
+        output = input
+        means = torch.mean(output, dim=0)
+        if self.mode == "PN":
+            output = output - means
+            rownorm_mean = (1e-6 + output.pow(2).sum(dim=1).mean()).sqrt()
+            output = self.scale * output / rownorm_mean
+        elif self.mode == "PN-SI":
+            output = output - means
+            rownorm_individual = (1e-6 + output.pow(2).sum(dim=1, keepdim=True)).sqrt()
+            output = self.scale * output / rownorm_individual
+        elif self.mode == "PN-SCS":
+            rownorm_individual = (1e-6 + output.pow(2).sum(dim=1, keepdim=True)).sqrt()
+            output = self.scale * output / rownorm_individual - means
+
         return output

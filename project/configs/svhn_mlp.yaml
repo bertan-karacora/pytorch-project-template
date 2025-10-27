@@ -1,0 +1,118 @@
+data:
+    train:
+        dataset:
+            name: SVHN
+            transforms:
+                features:
+                    - name: ToTensor
+                      kwargs: {}
+                target: []
+            kwargs:
+                download: false
+                ratio_validate_to_train: 0.83
+        dataloader:
+            kwargs:
+                batch_size: 256
+                shuffle: true
+    validate:
+        dataset:
+            name: SVHN
+            transforms:
+                features:
+                    - name: ToTensor
+                      kwargs: {}
+                target: []
+            kwargs:
+                download: false
+                ratio_validate_to_train: 0.83
+        dataloader:
+            kwargs:
+                batch_size: 256
+                shuffle: false
+    test:
+        dataset:
+            name: SVHN
+            transforms:
+                features:
+                    - name: ToTensor
+                      kwargs: {}
+                target: []
+            kwargs:
+                download: false
+                ratio_validate_to_train: 0.83
+        dataloader:
+            kwargs:
+                batch_size: 256
+                shuffle: false
+criterion:
+    name: CrossEntropyLoss
+    kwargs: {}
+measurers:
+    - name: Accuracy
+      kwargs: {}
+model:
+    name: MLP
+    kwargs:
+        num_channels_in: 3072
+        nums_channels_hidden: [1024, 256]
+        num_channels_out: 10
+        name_layer_act: LeakyReLU
+        name_layer_norm: BatchNorm1d
+        prob_dropout: 0.1
+        use_bias: true
+frequency_log: 10
+frequency_checkpoint: 50
+training:
+    num_epochs: 200
+    optimizer:
+        name: Adam
+        kwargs:
+            lr: 6.0e-4
+optimization_hyperparams:
+    direction: maximize
+    metric: Accuracy
+    params_to_optimize:
+        - name: Learning rate
+          type: float
+          kwargs:
+              low: 1.0e-5
+              high: 1.0e-2
+              log: true
+          path_in_config: [training, lr]
+        - name: Usage of bias
+          type: categorical
+          kwargs:
+              choices: [false, true]
+          path_in_config: [model, kwargs, use_bias]
+        - name: Dropout probability
+          type: float
+          kwargs:
+              low: 0.0
+              high: 0.3
+          path_in_config: [model, kwargs, prob_dropout]
+        - name: Normalization layer
+          type: categorical
+          kwargs:
+              choices: [null, BatchNorm1d, LayerNorm]
+          path_in_config: [model, kwargs, name_layer_norm]
+        - name: Activation layer
+          type: categorical
+          kwargs:
+              choices: [ReLU, LeakyReLU]
+          path_in_config: [model, kwargs, name_layer_act]
+        - name: Hidden dimensions
+          type: list
+          kwargs:
+              choices:
+                  - []
+                  - [64]
+                  - [256]
+                  - [512]
+                  - [2048]
+                  - [128, 32]
+                  - [512, 128]
+                  - [1024, 256]
+                  - [512, 128, 32]
+                  - [1024, 256, 64]
+                  - [2048, 512, 128]
+          path_in_config: [model, kwargs, nums_channels_hidden]

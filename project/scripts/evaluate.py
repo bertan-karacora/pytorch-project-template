@@ -1,6 +1,8 @@
 import argparse
 
-from self_supervised_learning_of_depth_and_motion.evaluation.evaluator import Evaluator
+from project.evaluation.evaluator import Evaluator
+
+logging.getLogger().setLevel(logging.INFO)
 
 
 def parse_args():

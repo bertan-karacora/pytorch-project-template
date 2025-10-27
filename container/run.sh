@@ -2,24 +2,26 @@
 
 set -e -u -o pipefail
 
-readonly path_repo="$(dirname "$(dirname "$(realpath "$BASH_SOURCE")")")"
-source "$path_repo/config.sh"
+readonly path_repo="$(dirname $(dirname $(realpath $BASH_SOURCE)))"
+source "$path_repo/env.sh"
 
 readonly name_container="$NAME_CONTAINER_PYTORCH_PROJECT"
 command=""
-use_detach=1
+use_detach=""
+gb_ram_system=""
 
 show_help() {
     echo "Usage:"
-    echo "  ./run.sh [-h|--help] [-a|--use_attach] [<command>]"
+    echo "  ./run.sh [-h|--help] [-a|--use_detach] [<command>]"
     echo
-    echo "Run the container."
+    echo "Run a command in the container."
     echo
 }
 
 parse_args() {
+    local arg=""
     while [[ "$#" -gt 0 ]]; do
-        local arg="$1"
+        arg="$1"
         shift
         case "$arg" in
         -h | --help)
@@ -27,7 +29,7 @@ parse_args() {
             exit 0
             ;;
         -a | --use_attach)
-            use_detach=""
+            use_detach=1
             ;;
         *)
             if [[ -z "$command" ]]; then
@@ -40,31 +42,42 @@ parse_args() {
     done
 }
 
+check_memory_system() {
+    local kb_ram_system=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    gb_ram_system="$((kb_ram_system / 1024 / 1024))"
+
+    if [ "$gb_ram_system" -lt 8 ]; then
+        echo "Warning: System has less than 8GB of RAM (${gb_ram_system}GB)."
+        echo "         The container may not work properly."
+    fi
+}
+
 run() {
-    local name_tag="$(arch)"
     local name_repo="$(basename "$path_repo")"
+    local name_tag="$(arch)"
 
     docker run \
         --name "$name_container" \
+        --shm-size "${gb_ram_system}g" \
+        --gpus all \
+        --ipc host \
         --interactive \
         --tty \
-        --ipc host \
         --net host \
-        --gpus all \
-        --shm-size 64mb \
         --rm \
         --env DISPLAY \
         ${use_detach:+"--detach"} \
         --volume /etc/localtime:/etc/localtime:ro \
         --volume /tmp/.X11-unix/:/tmp/.X11-unix/:ro \
-        --volume "$HOME/.Xauthority:/root/.Xauthority:ro" \
-        --volume "$path_repo:/root/repos/$name_repo" \
+        --volume "$HOME/.Xauthority:/home/$USER/.Xauthority:ro" \
+        --volume "$path_repo:/home/$USER/repos/$name_repo" \
         "$name_container:$name_tag" \
         ${command:+"$command"}
 }
 
 main() {
     parse_args "$@"
+    check_memory_system
     run
 }
 

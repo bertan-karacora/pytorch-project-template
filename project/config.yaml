@@ -1,6 +1,18 @@
-path_dir_data: "/home/user/karacora/self-supervised-learning-of-depth-and-motion/data"
-path_dir_exps: "/home/user/karacora/self-supervised-learning-of-depth-and-motion/experiments"
-path_dir_weights: "/home/user/karacora/self-supervised-learning-of-depth-and-motion/weights"
+# Paths
+path_dir_data: "/home/bertan/repos/pytorch-project-template/data"
+path_dir_experiments: "/home/bertan/repos/pytorch-project-template/experiments"
+path_dir_weights: "/home/bertan/repos/pytorch-project-template/resources/weights"
 
-num_workers_dataloading: 4
+# System
+device: cuda
+num_workers: 4
 seed_rngs: 42
+
+# Logging
+level_logging_default: INFO
+
+# Visualization
+size_font: 9
+size_label_ticks_major: 9
+size_label_ticks_minor: 9
+alpha_grid: 0.4

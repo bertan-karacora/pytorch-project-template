@@ -1,7 +1,12 @@
+import logging
+
 import torch
 import torchvision.transforms.v2 as tv_transforms
 
-import self_supervised_learning_of_depth_and_motion.libs.utils_import as utils_import
+import project.libs.utils_import as utils_import
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class VAEGaussian(torch.nn.Module):

@@ -1,0 +1,57 @@
+data:
+    training:
+        dataset:
+            name: LFWPeople
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: Resize
+                          kwargs:
+                              size: [256, 256]
+                        - name: CenterCrop
+                          kwargs:
+                              size: [224, 224]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                type_funneling: deepfunneled
+                ratio_validation_to_training: 0.0
+        dataloader:
+            kwargs:
+                batch_size: 256
+                shuffle: true
+                pin_memory: true
+    test:
+        dataset:
+            name: LFWPeople
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: Resize
+                          kwargs:
+                              size: [256, 256]
+                        - name: CenterCrop
+                          kwargs:
+                              size: [224, 224]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                type_funneling: deepfunneled
+                ratio_validation_to_training: 0.0
+        dataloader:
+            kwargs:
+                batch_size: 256
+                shuffle: false
+                pin_memory: true

@@ -1,0 +1,159 @@
+data:
+    train:
+        dataset:
+            name: StanfordCars
+            transform:
+                features:
+                    name: Compose
+                    kwargs: {}
+                    transforms:
+                        - name: PILToTensor
+                          kwargs: {}
+                        - name: RandomResizedCrop
+                          kwargs:
+                              size: [224, 224]
+                        - name: RandomHorizontalFlip
+                          kwargs:
+                              p: 0.5
+                        - name: RandomRotation
+                          kwargs:
+                              degrees: [-20.0, 20.0]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                        - name: ColorJitter
+                          kwargs:
+                              brightness: [0.5, 1.5]
+                              contrast: [0.8, 1.2]
+                              saturation: [0.9, 1.1]
+                              hue: [-0.2, 0.2]
+                        - name: GaussianNoise
+                          kwargs:
+                              mean: 0.0
+                              std: 0.05
+                        - name: Clip
+                          kwargs:
+                              min: 0.0
+                              max: 1.0
+                        - name: Normalize
+                          kwargs:
+                              mean: [0.485, 0.456, 0.406]
+                              std: [0.229, 0.224, 0.225]
+                target: null
+            kwargs:
+                ratio_validate_to_train: 0.8
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: true
+            collation:
+                name: default
+                kwargs:
+                    dict_transform:
+                        name: MixUp
+                        kwargs:
+                            num_classes: 196
+                            alpha: 1.0
+    validate:
+        dataset:
+            name: StanfordCars
+            transform:
+                features:
+                    name: Compose
+                    kwargs: {}
+                    transforms:
+                        - name: PILToTensor
+                          kwargs: {}
+                        - name: Resize
+                          kwargs:
+                              size: [256, 256]
+                        - name: CenterCrop
+                          kwargs:
+                              size: [224, 224]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                        - name: Normalize
+                          kwargs:
+                              mean: [0.485, 0.456, 0.406]
+                              std: [0.229, 0.224, 0.225]
+                target: null
+            kwargs:
+                ratio_validate_to_train: 0.8
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: false
+    test:
+        dataset:
+            name: StanfordCars
+            transform:
+                features:
+                    name: Compose
+                    kwargs: {}
+                    transforms:
+                        - name: PILToTensor
+                          kwargs: {}
+                        - name: Resize
+                          kwargs:
+                              size: [256, 256]
+                        - name: CenterCrop
+                          kwargs:
+                              size: [224, 224]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                        - name: Normalize
+                          kwargs:
+                              mean: [0.485, 0.456, 0.406]
+                              std: [0.229, 0.224, 0.225]
+                target: null
+            kwargs:
+                ratio_validate_to_train: 0.8
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: false
+criterion:
+    name: CrossEntropyLoss
+    kwargs: {}
+measurers:
+    - name: Accuracy
+      kwargs: {}
+model:
+    name: resnet18
+    shape_input: [3, 224, 224]
+    kwargs:
+        weights: "DEFAULT"
+        progress: false
+    transfer:
+        layers:
+            - name: fc
+              model:
+                  name: MLP
+                  kwargs:
+                      num_channels_in: 512
+                      nums_channels_hidden: []
+                      num_channels_out: 196
+                      use_bias: true
+frequency_log: 5
+frequency_checkpoint: 10
+training:
+    num_epochs: 20
+    optimizer:
+        name: Adam
+        kwargs:
+            lr: 3.0e-4
+            weight_decay: 0.01
+    scheduler:
+        name: ReduceLROnPlateau
+        kwargs:
+            factor: 0.5
+            patience: 5
+visualization:
+    kwargs_unnormalize:
+        mean: [0.485, 0.456, 0.406]
+        std: [0.229, 0.224, 0.225]

@@ -131,7 +131,8 @@ dmypy.json
 # Data
 data/
 
-# Resources
+# Pretrained checkpoints
 resources/checkpoints_pretrained/
-resources/experiments/
-optuna.db
+
+# Optuna database
+experiments/optuna.db

@@ -4,10 +4,11 @@ import logging
 import torch
 from tqdm import tqdm
 
-import self_supervised_learning_of_depth_and_motion.config as config
-import self_supervised_learning_of_depth_and_motion.libs.factory as factory
+import project.config as config
+import project.libs.factory as factory
 
 _LOGGER = logging.getLogger(__name__)
+logging.getLogger().setLevel(logging.INFO)
 
 
 def parse_args():

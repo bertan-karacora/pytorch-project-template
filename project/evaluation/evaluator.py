@@ -1,97 +1,130 @@
-import collections
+from contextlib import contextmanager
+import logging
 from pathlib import Path
+import time
 
-import numpy as np
 import torch
-import torchinfo
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
-import self_supervised_learning_of_depth_and_motion.config as config
-import self_supervised_learning_of_depth_and_motion.libs.factory as factory
-import self_supervised_learning_of_depth_and_motion.libs.utils_checkpoints as utils_checkpoints
+import project.config as config
+import project.libs.factory as factory
+import project.libs.utils_checkpoints as utils_checkpoints
+import project.libs.utils_data as utils_data
+import project.libs.utils_torch as utils_torch
+from project.evaluation.log import Log
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Evaluator:
-    def __init__(self, name_exp, name_checkpoint="best", quiet=False):
+    def __init__(self, name_experiment, name_checkpoint="best"):
         self.dataloader_test = None
         self.dataset_test = None
         self.device = None
         self.log = None
-        self.measurers = None
+        self.measurers_test = None
         self.model = None
         self.name_checkpoint = name_checkpoint
-        self.name_exp = name_exp
-        self.path_dir_exp = None
-        self.quiet = quiet
+        self.name_experiment = name_experiment
+        self.path_dir_experiment = None
 
         self._init()
 
-    def __str__(self):
-        s = f"""Evaluator for experiment {self.name_exp}
-    Path: {self.path_dir_exp}
-    Dataset: {self.dataset_test}
-    Model: {self.model}
-    Measurers: {self.measurers}"""
-        return s
+        _LOGGER.info(f"Initialized evaluator for experiment: '{self.name_experiment}'")
 
     def _init(self):
-        self.path_dir_exp = Path(config._PATH_DIR_EXPS) / self.name_exp
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.log = {
-            "test": {
-                "batches": {
-                    "num_samples": [],
-                    "metrics": collections.defaultdict(list),
-                },
-                "total": {
-                    "metrics": {},
-                },
-            }
-        }
+        self.path_dir_experiment = Path(config._PATH_DIR_EXPS) / self.name_experiment
+        self.log = Log(self.path_dir_experiment)
+        self.device = utils_torch.get_device(config._DEVICE)
         self.dataset_test, self.dataloader_test = factory.create_dataset_and_dataloader(split="test")
         self.model = utils_checkpoints.load_model(self.path_dir_exp / "checkpoints" / f"{self.name_checkpoint}.pth")
-        self.measurers = factory.create_measurers(split="test")
+        if hasattr(config, "MEASURERS"):
+            if "test" in config.MEASURERS:
+                self.measurers = factory.create_measurers(split="test")
 
-        self.print(self)
-        self.print(torchinfo.summary(self.model, [config.MODEL["shape_input"]], verbose=0))
-
-    def print(self, s):
-        if not self.quiet:
-            print(s)
-
-    def log_batch(self, num_samples, output, targets):
-        self.log["test"]["batches"]["num_samples"] += [num_samples]
-        for measurer in self.measurers:
+    def measure(self, measurers, output, target):
+        metrics = {}
+        for measurer in measurers:
             name_metric = measurer.name_module if hasattr(measurer, "name_module") else type(measurer).__name__
-            metric = measurer(output, targets)
-            self.log["test"]["batches"]["metrics"][name_metric] += [metric.item()]
+            metric = measurer(output, target)
+            metrics[name_metric] = metric
 
-    def log_total(self, num_batches, num_samples):
-        nums_samples = np.asarray(self.log["test"]["batches"]["num_samples"][-num_batches:])
-        for name, metrics in self.log["test"]["batches"]["metrics"].items():
-            metrics_total = np.asarray(metrics[-num_batches:])
-            metric_total = np.sum(metrics_total * nums_samples) / num_samples
-            self.log["test"]["total"]["metrics"][name] = metric_total
+        return metrics
+
+    def to(self, device):
+        self.model.to(device)
+        for measurer in self.measurers_test:
+            measurer.to(device)
+
+    def eval(self):
+        self.model.eval()
+        for measurer in self.measurers_test:
+            measurer.eval()
+
+    @contextmanager
+    def progress(dataloader, num_batches=None):
+        _progress = tqdm(
+            iterable=dataloader,
+            total=num_batches,
+            disable=not _LOGGER.isEnabledFor(logging.INFO),
+            desc=f"Evaluation: ",
+            dynamic_ncols=True,
+            leave=False,
+        )
+
+        def update(iteration, duration):
+            if iteration % config.LOGGING["tqdm"]["frequency"] == 1 or iteration == num_batches:
+                _progress.set_postfix(
+                    {
+                        "Batch": f"{f"{iteration:0{len(str(num_batches))}d}" if num_batches is not None else iteration} ",
+                        "Duration": f"{duration:.1f}",
+                    }
+                )
+                _LOGGER.info(
+                    "".join(
+                        [
+                            f"Evaluation: ",
+                            f"Batch={f"{iteration:0{len(str(num_batches))}d}" if num_batches is not None else iteration}, ",
+                            f"Duration={duration:.1f}, ",
+                        ]
+                    )
+                )
+
+        try:
+            yield _progress, update
+        finally:
+            _progress.close()
 
     @torch.inference_mode()
     def evaluate(self):
-        self.print("Evaluation ...")
+        _LOGGER.info("Evaluating...")
 
-        self.model = self.model.to(self.device)
-        for i in range(len(self.measurers)):
-            self.measurers[i] = self.measurers[i].to(self.device)
+        time_start_total = time.time()
 
-        progress_bar = tqdm(self.dataloader_test, total=len(self.dataloader_test), disable=self.quiet)
-        for i, (features, targets) in enumerate(progress_bar, start=1):
-            features = features.to(self.device)
-            targets = targets.to(self.device)
+        self.to(self.device)
+        self.eval()
 
-            output = self.model(features)
+        num_batches = len(self.dataloader_test)
+        with progress(self.dataloader_test, num_batches) as (progress, update_progress):
+            for iteration, (inpt, target) in enumerate(progress, start=1):
+                time_start = time.time()
 
-            self.log_batch(len(targets), output, targets)
-            if i % config.LOGGING["tqdm"]["frequency"] == 0 and not self.quiet:
-                progress_bar.set_description(f"Validating: Batch {i:03d}")
+                inpt = utils_data.move_batch(inpt, self.device)
+                target = utils_data.move_batch(target, self.device)
 
-        self.log_total(num_batches=len(self.dataloader_test), num_samples=len(self.dataset_test))
+                output = self.model(inpt)
 
-        self.print("Evaluation finished")
+                metrics = self.measure(self.measurers_validation, output, target)
+                num_samples = utils_data.count_items(target)
+                time_end = time.time()
+                duration = time_end - time_start
+                self.log.add_batch(num_samples, inpt, target, output, metrics, duration)
+
+                update_progress(iteration, duration)
+
+        time_end_total = time.time()
+        duration_total = time_end_total - time_start_total
+        self.log.add_total(len(self.dataset_test), num_batches, duration_total)
+
+        _LOGGER.info("Evaluating finished")

@@ -2,8 +2,8 @@
 
 set -e -u -o pipefail
 
-readonly path_repo="$(dirname "$(dirname "$(realpath "$BASH_SOURCE")")")"
-source "$path_repo/config.sh"
+readonly path_repo="$(dirname $(dirname $(realpath $BASH_SOURCE)))"
+source "$path_repo/env.sh"
 
 readonly name_container="$NAME_CONTAINER_PYTORCH_PROJECT"
 use_clean=""
@@ -11,7 +11,7 @@ use_debug=""
 
 show_help() {
     echo "Usage:"
-    echo "  container/build.sh [-h|--help] [--use_clean] [--use_debug]"
+    echo "  ./build.sh [-h|--help] [--use_clean] [--use_debug]"
     echo
     echo "Build the container image."
     echo
@@ -19,7 +19,7 @@ show_help() {
 
 parse_args() {
     local arg=""
-    while [[ $# -gt 0 ]]; do
+    while [[ "$#" -gt 0 ]]; do
         arg="$1"
         shift
         case $arg in
@@ -28,10 +28,10 @@ parse_args() {
             exit 0
             ;;
         --use_clean)
-            use_clean=0
+            use_clean=1
             ;;
         --use_debug)
-            use_debug=0
+            use_debug=1
             ;;
         *)
             echo "Unknown option $arg"
@@ -45,11 +45,16 @@ build() {
     local name_tag="$(arch)"
 
     docker build \
+        --build-arg=USER \
+        --build-arg UID="$UID" \
         --build-arg=VERSION_UBUNTU_CONTAINER \
+        --build-arg=URL_KEYRING_NVIDIA_CONTAINER \
         --build-arg=VERSION_CUDA_CONTAINER \
         --build-arg=VERSION_CUDNN_CONTAINER \
         --build-arg=VERSION_PYTHON_CONTAINER \
-        --build-arg=URL_KEYRING_NVIDIA_CONTAINER \
+        --build-arg=VERSION_PIP_CONTAINER \
+        --build-arg=VERSION_SETUPTOOLS_CONTAINER \
+        --build-arg=VERSION_WHEEL_CONTAINER \
         --tag="$name_container:$name_tag" \
         --file="$path_repo/container/Dockerfile" \
         ${use_clean:+--no-cache} \

@@ -3,7 +3,9 @@ from pathlib import Path
 import shutil
 import time
 
-import self_supervised_learning_of_depth_and_motion.config as config
+import project.config as config
+
+logging.getLogger().setLevel(logging.INFO)
 
 
 def parse_args():

@@ -1,4 +1,9 @@
+import logging
+
 import torch
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class TripletLoss(torch.nn.Module):
@@ -11,8 +16,8 @@ class TripletLoss(torch.nn.Module):
 
         self.fn_mine = getattr(self, f"mine_online_{method_mining}")
 
-    def forward(self, input, target):
-        d_ap, d_an = self.fn_mine(input, target)
+    def forward(self, inpt, target):
+        d_ap, d_an = self.fn_mine(inpt, target)
 
         output = d_ap - d_an + self.margin
         # Cleaner than torch.maximum
@@ -21,20 +26,20 @@ class TripletLoss(torch.nn.Module):
 
         return output
 
-    def mine_online_random(self, input, target):
-        latent_anchor = input["anchor"]
-        latent_positive = input["positive"]
-        latent_negative = input["negative"]
+    def mine_online_random(self, inpt, target):
+        latent_anchor = inpt["anchor"]
+        latent_positive = inpt["positive"]
+        latent_negative = inpt["negative"]
 
         d_ap = (latent_anchor - latent_positive).pow(2).sum(dim=-1)
         d_an = (latent_anchor - latent_negative).pow(2).sum(dim=-1)
 
         return d_ap, d_an
 
-    def mine_online_semihard_negative(self, input, target):
-        latent_anchor = input["anchor"]
-        latent_positive = input["positive"]
-        latent_negative = input["negative"]
+    def mine_online_semihard_negative(self, inpt, target):
+        latent_anchor = inpt["anchor"]
+        latent_positive = inpt["positive"]
+        latent_negative = inpt["negative"]
         target_anchor = target["anchor"]
         target_negative = target["negative"]
 

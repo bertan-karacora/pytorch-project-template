@@ -1,0 +1,127 @@
+data:
+    train:
+        dataset:
+            name: KTH
+            transform:
+                features:
+                    name: Compose
+                    kwargs: {}
+                    transforms:
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                        - name: RandomHorizontalFlip
+                          kwargs:
+                              p: 0.5
+                        - name: RandomRotation
+                          kwargs:
+                              degrees: [-10.0, 10.0]
+                        - name: ColorJitter
+                          kwargs:
+                              brightness: [0.5, 1.5]
+                              contrast: [0.8, 1.2]
+                              saturation: 0
+                              hue: 0
+                        - name: GaussianNoise
+                          kwargs:
+                              mean: 0.0
+                              std: 0.05
+                        - name: Clip
+                          kwargs:
+                              min: 0.0
+                              max: 1.0
+                target: null
+            kwargs:
+                len_sequence: 15
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: true
+                pin_memory: true
+    validate:
+        dataset:
+            name: KTH
+            transform:
+                features:
+                    name: ToDtype
+                    kwargs:
+                        dtype: float32
+                        scale: true
+                target: null
+            kwargs:
+                len_sequence: 15
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: false
+                pin_memory: true
+    test:
+        dataset:
+            name: KTH
+            transform:
+                features:
+                    name: ToDtype
+                    kwargs:
+                        dtype: float32
+                        scale: true
+                target: null
+            kwargs:
+                len_sequence: 15
+        dataloader:
+            kwargs:
+                batch_size: 64
+                shuffle: false
+                pin_memory: true
+criterion:
+    name: CrossEntropyLoss
+    kwargs: {}
+measurers:
+    - name: Accuracy
+      kwargs: {}
+model:
+    name: RNNClassifier
+    shape_input: [15, 1, 64, 64]
+    kwargs:
+        name_encoder: CNN2dEncoder
+        kwargs_encoder:
+            shape_input: [1, 64, 64]
+            nums_channels_hidden_body: [64, 128, 256, 512]
+            num_channels_out: 512
+            kwargs_body:
+                shape_kernel_conv: [5, 5]
+                shape_kernel_pool: [2, 2]
+                name_layer_act: LeakyReLU
+                name_layer_norm: BatchNorm2d
+                name_layer_pool: MaxPool2d
+                kwargs_conv:
+                    padding: same
+                kwargs_pool: {}
+        name_rnn: LSTM
+        kwargs_rnn:
+            num_channels_in: 512
+            num_channels_out: 512
+            num_cells: 5
+            name_func_init: kaiming_uniform_
+        name_head: MLP
+        kwargs_head:
+            num_channels_in: 512
+            nums_channels_hidden: [256]
+            num_channels_out: 6
+            name_layer_act: LeakyReLU
+            name_layer_norm: BatchNorm1d
+            prob_dropout: 0.1
+frequency_log: 5
+frequency_checkpoint: 10
+training:
+    num_epochs: 50
+    optimizer:
+        name: Adam
+        kwargs:
+            lr: 3.0e-4
+            weight_decay: 1.0e-3
+    scheduler:
+        name: ReduceLROnPlateau
+        kwargs:
+            factor: 0.5
+            patience: 5

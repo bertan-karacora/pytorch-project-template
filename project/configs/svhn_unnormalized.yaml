@@ -1,0 +1,64 @@
+data:
+    training:
+        dataset:
+            name: SVHN
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                ratio_validation_to_training: 0.2
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: true
+                pin_memory: true
+    validation:
+        dataset:
+            name: SVHN
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                ratio_validation_to_training: 0.2
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: false
+                pin_memory: true
+    test:
+        dataset:
+            name: SVHN
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                ratio_validation_to_training: 0.2
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: false
+                pin_memory: true

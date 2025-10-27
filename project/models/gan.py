@@ -1,7 +1,7 @@
 import torch
 import torchvision.transforms.v2 as tv_transforms
 
-from self_supervised_learning_of_depth_and_motion.models.cnn import BlockConv2d, BlockConvTranspose2d
+from project.models.cnn import BlockConv2d, BlockConvTranspose2d
 
 
 class GeneratorDCGAN2d(torch.nn.Module):

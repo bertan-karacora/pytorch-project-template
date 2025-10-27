@@ -1,11 +1,16 @@
+import logging
 from pathlib import Path
 
 import torch
+import torchinfo
 
-import self_supervised_learning_of_depth_and_motion.config as config
-import self_supervised_learning_of_depth_and_motion.libs.collations as collations
-import self_supervised_learning_of_depth_and_motion.libs.utils_import as utils_import
-import self_supervised_learning_of_depth_and_motion.libs.utils_model as utils_model
+import project.config as config
+import project.libs.collations as collations
+import project.libs.utils_import as utils_import
+import project.libs.utils_model as utils_model
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def create_transform(dict_transform):
@@ -20,6 +25,9 @@ def create_transform(dict_transform):
     else:
         transform = class_transform(**kwargs_transform)
 
+    _LOGGER.info(f"Created transform: '{type(transform).__name__}'")
+    _LOGGER.debug(f"Transform: '{transform}'")
+
     return transform
 
 
@@ -27,7 +35,7 @@ def create_transforms(dicts_transforms):
     transforms = []
     for dict_transform in dicts_transforms:
         transform = create_transform(dict_transform)
-        transforms += [transform]
+        transforms.append(transform)
 
     return transforms
 
@@ -52,6 +60,9 @@ def create_dataset(split):
         **kwargs_dataset,
     )
 
+    _LOGGER.info(f"Created dataset: '{type(dataset_split).__name__}'")
+    _LOGGER.debug(f"Dataset: '{dataset_split}'")
+
     return dataset_split
 
 
@@ -61,6 +72,9 @@ def create_collation(split):
 
     create_collation_fn = getattr(collations, dict_collation["name"])
     collate_fn = create_collation_fn(**kwargs_collation)
+
+    _LOGGER.info(f"Created collation: '{collate_fn.__name__}'")
+    _LOGGER.debug(f"Collation: '{collate_fn}'")
 
     return collate_fn
 
@@ -75,6 +89,9 @@ def create_dataloader(dataset_split, split):
         collate_fn=create_collation(split) if "collation" in dict_dataloader else None,
         **kwargs_dataloader,
     )
+
+    _LOGGER.info(f"Created dataloader: '{type(dataloader_split).__name__}'")
+    _LOGGER.debug(f"Dataloader: '{dataloader_split}'")
 
     return dataloader_split
 
@@ -93,6 +110,9 @@ def create_model():
     class_model = utils_import.import_model(dict_model["name"])
     model = class_model(**kwargs_model).eval()
 
+    _LOGGER.info(f"Created model: '{type(model).__name__}'")
+    _LOGGER.debug(f"Model: '{model}'")
+
     # TODO: This is bad.
     if "transfer" in dict_model:
         if "epochs_freeze" in dict_model["transfer"] and dict_model["transfer"]["epochs_freeze"] > 0:
@@ -104,6 +124,12 @@ def create_model():
             model_layer = class_model_layer(**dict_model_layer["kwargs"]).eval()
 
             setattr(model, dict_layer["name"], model_layer)
+
+    # TODO: This isn't very good either
+    try:
+        _LOGGER.info(torchinfo.summary(model, [config.MODEL["shape_input"]], verbose=0))
+    except Exception as e:
+        _LOGGER.exception(e)
 
     return model
 
@@ -121,6 +147,9 @@ def create_criterion(dict_criterion=None):
     else:
         criterion = class_criterion(**kwargs_criterion)
 
+    _LOGGER.info(f"Created criterion: '{type(criterion).__name__}'")
+    _LOGGER.debug(f"Criterion: '{criterion}'")
+
     return criterion
 
 
@@ -128,7 +157,8 @@ def create_criteria(dicts_criteria=None):
     criteria = []
     for dict_criterion in dicts_criteria:
         criterion = create_criterion(dict_criterion)
-        criteria += [criterion]
+        criteria.append(criterion)
+
     return criteria
 
 
@@ -137,6 +167,10 @@ def create_measurer(dict_measurer):
 
     class_measurer = utils_import.import_metric(dict_measurer["name"])
     measurer = class_measurer(**kwargs_measurer)
+
+    _LOGGER.info(f"Created measurer: '{type(measurer).__name__}'")
+    _LOGGER.debug(f"Measurer: '{measurer}'")
+
     return measurer
 
 
@@ -145,7 +179,8 @@ def create_measurers(split):
     dicts_measurers = config.MEASURERS[split] if split in config.MEASURERS else config.MEASURERS
     for dict_measurer in dicts_measurers:
         measurer = create_measurer(dict_measurer)
-        measurers += [measurer]
+        measurers.append(measurer)
+
     return measurers
 
 
@@ -155,6 +190,10 @@ def create_optimizer(params):
 
     class_optimizer = getattr(torch.optim, dict_optimizer["name"])
     optimizer = class_optimizer(params, **kwargs_optimizer)
+
+    _LOGGER.info(f"Created optimizer: '{type(optimizer).__name__}'")
+    _LOGGER.debug(f"Optimizer: '{optimizer}'")
+
     return optimizer
 
 
@@ -172,6 +211,9 @@ def create_scheduler(optimizer, dict_scheduler=None):
     else:
         scheduler = class_scheduler(optimizer, **kwargs_scheduler)
 
+    _LOGGER.info(f"Created scheduler: '{type(scheduler).__name__}'")
+    _LOGGER.debug(f"Scheduler: '{scheduler}'")
+
     return scheduler
 
 
@@ -179,5 +221,6 @@ def create_schedulers(optimizer, dicts_schedulers):
     schedulers = []
     for dict_scheduler in dicts_schedulers:
         scheduler = create_scheduler(optimizer, dict_scheduler)
-        schedulers += [scheduler]
+        schedulers.append(scheduler)
+
     return schedulers

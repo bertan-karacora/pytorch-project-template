@@ -1,0 +1,178 @@
+data:
+    training:
+        dataset:
+            name: SVHN
+            mean: [0.4375, 0.4436, 0.4727]
+            std: [0.1979, 0.2009, 0.1968]
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                        - name: Normalize
+                          kwargs:
+                              mean: [0.4375, 0.4436, 0.4727]
+                              std: [0.1979, 0.2009, 0.1968]
+                target: null
+            kwargs:
+                use_download: false
+                ratio_validation_to_training: 0.2
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: true
+                pin_memory: true
+    validation:
+        dataset:
+            name: SVHN
+            mean: [0.4375, 0.4436, 0.4727]
+            std: [0.1979, 0.2009, 0.1968]
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                        - name: Normalize
+                          kwargs:
+                              mean: [0.4375, 0.4436, 0.4727]
+                              std: [0.1979, 0.2009, 0.1968]
+                target: null
+            kwargs:
+                use_download: false
+                ratio_validation_to_training: 0.2
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: false
+                pin_memory: true
+    test:
+        dataset:
+            name: SVHN
+            mean: [0.4375, 0.4436, 0.4727]
+            std: [0.1979, 0.2009, 0.1968]
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                        - name: Normalize
+                          kwargs:
+                              mean: [0.4375, 0.4436, 0.4727]
+                              std: [0.1979, 0.2009, 0.1968]
+                target: null
+            kwargs:
+                use_download: false
+                ratio_validation_to_training: 0.2
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: false
+                pin_memory: true
+model_discriminator:
+    name: DiscriminatorCDCGAN2d
+    shape_input: [3, 32, 32]
+    kwargs:
+        num_channels_in_features: 3
+        num_channels_in_label: 1
+        nums_channels_hidden: [128, 256, 512, 1024]
+        num_channels_out: 1
+        prob_dropout: 0.3
+model_generator:
+    name: GeneratorCDCGAN2d
+    shape_input: [32]
+    kwargs:
+        num_channels_in_latent: 32
+        num_channels_in_label: 1
+        nums_channels_hidden: [1024, 512, 256, 128]
+        num_channels_out: 3
+        use_normalize: true
+        kwargs_normalize:
+            mean: [0.4375, 0.4436, 0.4727]
+            std: [0.1979, 0.2009, 0.1968]
+measurers_discriminator:
+    training:
+        - name: Accuracy
+          kwargs:
+              task: binary
+    validation:
+        - name: Accuracy
+          kwargs:
+              task: binary
+    test:
+        - name: Accuracy
+          kwargs:
+              task: binary
+measurers_generator:
+    training:
+        - name: FrechetInceptionDistance
+          kwargs:
+              use_unnormalize: true
+              kwargs_unnormalize:
+                  mean: [0.4375, 0.4436, 0.4727]
+                  std: [0.1979, 0.2009, 0.1968]
+              feature: 64
+              normalize: true
+              reset_real_features: true
+    validation:
+        - name: FrechetInceptionDistance
+          kwargs:
+              use_unnormalize: true
+              kwargs_unnormalize:
+                  mean: [0.4375, 0.4436, 0.4727]
+                  std: [0.1979, 0.2009, 0.1968]
+              feature: 64
+              normalize: true
+              reset_real_features: true
+    test:
+        - name: FrechetInceptionDistance
+          kwargs:
+              use_unnormalize: true
+              kwargs_unnormalize:
+                  mean: [0.4375, 0.4436, 0.4727]
+                  std: [0.1979, 0.2009, 0.1968]
+              feature: 64
+              normalize: true
+              reset_real_features: true
+criterion:
+    name: BCELoss
+training:
+    num_epochs: 20
+    optimizer:
+        name: Adam
+        kwargs:
+            lr: 3.0e-4
+            weight_decay: 1.0e-3
+            betas: [0.5, 0.9]
+    scheduler:
+        name: SequentialLR
+        schedulers:
+            - name: LinearLR
+              kwargs:
+                  start_factor: 0.333
+                  end_factor: 1.0
+                  total_iters: 5
+            - name: ExponentialLR
+              kwargs:
+                  gamma: 0.9
+        kwargs:
+            milestones: [5]
+logging:
+    tqdm:
+        frequency: 10
+    tensorboard:
+        frequency: 1
+        frequency_images: 300
+    checkpoint:
+        frequency: 10

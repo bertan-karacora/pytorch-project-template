@@ -1,0 +1,82 @@
+data:
+    training:
+        dataset:
+            name: CelebA
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: CenterCrop
+                          kwargs:
+                              size: [178, 178]
+                        - name: Resize
+                          kwargs:
+                              size: [128, 128]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                use_features_as_target: true
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: true
+                pin_memory: true
+    validation:
+        dataset:
+            name: CelebA
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: CenterCrop
+                          kwargs:
+                              size: [178, 178]
+                        - name: Resize
+                          kwargs:
+                              size: [128, 128]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                use_features_as_target: true
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: false
+                pin_memory: true
+    test:
+        dataset:
+            name: CelebA
+            transform:
+                features:
+                    name: Compose
+                    transforms:
+                        - name: PILToTensor
+                        - name: CenterCrop
+                          kwargs:
+                              size: [178, 178]
+                        - name: Resize
+                          kwargs:
+                              size: [128, 128]
+                        - name: ToDtype
+                          kwargs:
+                              dtype: float32
+                              scale: true
+                target: null
+            kwargs:
+                use_download: true
+                use_features_as_target: true
+        dataloader:
+            kwargs:
+                batch_size: 128
+                shuffle: false
+                pin_memory: true

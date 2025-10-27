@@ -1,6 +1,6 @@
 import torch
 
-import self_supervised_learning_of_depth_and_motion.libs.utils_import as utils_import
+import project.libs.utils_import as utils_import
 
 
 class GRU(torch.nn.Module):

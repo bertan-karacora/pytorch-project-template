@@ -1,21 +1,24 @@
-import collections
+from contextlib import contextmanager
+import logging
 from pathlib import Path
 import time
 
-import numpy as np
 import torch
-from torch.utils.tensorboard import SummaryWriter
-import torchinfo
-from tqdm import tqdm
+from tqdm.auto import tqdm
 
-import self_supervised_learning_of_depth_and_motion.config as config
-import self_supervised_learning_of_depth_and_motion.libs.factory as factory
-import self_supervised_learning_of_depth_and_motion.libs.utils_checkpoints as utils_checkpoints
-import self_supervised_learning_of_depth_and_motion.libs.utils_data as utils_data
+import project.config as config
+import project.libs.factory as factory
+import project.libs.utils_checkpoints as utils_checkpoints
+import project.libs.utils_data as utils_data
+import project.libs.utils_torch as utils_torch
+from project.training.log import Log
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 class Trainer:
-    def __init__(self, name_exp, quiet=False):
+    def __init__(self, name_experiment):
         self.criterion = None
         self.dataloader_training = None
         self.dataloader_validation = None
@@ -26,68 +29,21 @@ class Trainer:
         self.measurers_training = None
         self.measurers_validation = None
         self.model = None
-        self.name_exp = name_exp
+        self.name_experiment = name_experiment
         self.optimizer = None
-        self.path_dir_exp = None
+        self.path_dir_experiment = None
         self.scaler = None
         self.scheduler = None
-        self.quiet = quiet
-        self.writer_tensorboard = None
 
         self._init()
 
-    def __str__(self):
-        s = f"""Trainer for experiment {self.name_exp}
-    Path: {self.path_dir_exp}
-    Dataset (training): {self.dataset_training}
-    Dataset (validation): {self.dataset_validation}
-    Model: {self.model}
-    Criterion: {self.criterion}
-    Optimizer: {self.optimizer}
-    Scheduler: {self.scheduler}
-    Measurers (training): {self.measurers_training}
-    Measurers (validation): {self.measurers_validation}"""
-        return s
+        _LOGGER.info(f"Initialized trainer for experiment: '{self.name_experiment}'")
 
     def _init(self):
-        self.path_dir_exp = Path(config._PATH_DIR_EXPS) / self.name_exp
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-        path_tensorboard = self.path_dir_exp / "tensorboard" / time.strftime("%Y_%m_%d-%H_%M_%S")
-        path_tensorboard.mkdir(parents=True, exist_ok=True)
-        self.writer_tensorboard = SummaryWriter(path_tensorboard)
-
+        self.path_dir_experiment = Path(config._PATH_DIR_EXPS) / self.name_experiment
+        self.log = Log(self.path_dir_experiment)
+        self.device = utils_torch.get_device(config._DEVICE)
         self.scaler = torch.cuda.amp.GradScaler(enabled=config.TRAINING["use_amp"])
-        self.log = {
-            "training": {
-                "batches": {
-                    "epoch": [],
-                    "num_samples": [],
-                    "learning_rate": [],
-                    "loss": [],
-                    "metrics": collections.defaultdict(list),
-                },
-                "epochs": {
-                    "learning_rate": [],
-                    "loss": [],
-                    "metrics": collections.defaultdict(list),
-                },
-            },
-            "validation": {
-                "batches": {
-                    "epoch": [],
-                    "num_samples": [],
-                    "learning_rate": [],
-                    "loss": [],
-                    "metrics": collections.defaultdict(list),
-                },
-                "epochs": {
-                    "learning_rate": [],
-                    "loss": [],
-                    "metrics": collections.defaultdict(list),
-                },
-            },
-        }
         self.dataset_training, self.dataloader_training = factory.create_dataset_and_dataloader(split="training")
         self.dataset_validation, self.dataloader_validation = factory.create_dataset_and_dataloader(split="validation")
         self.model = factory.create_model()
@@ -95,136 +51,209 @@ class Trainer:
         self.optimizer = factory.create_optimizer(self.model.parameters())
         if "scheduler" in config.TRAINING:
             self.scheduler = factory.create_scheduler(self.optimizer)
-        self.measurers_training = factory.create_measurers(split="training")
-        self.measurers_validation = factory.create_measurers(split="validation")
+        if hasattr(config, "MEASURERS"):
+            if "training" in config.MEASURERS:
+                self.measurers_training = factory.create_measurers(split="training")
+            if "validation" in config.MEASURERS:
+                self.measurers_validation = factory.create_measurers(split="validation")
 
-        self.print(self)
-        try:
-            self.print(torchinfo.summary(self.model, [config.MODEL["shape_input"]], verbose=0))
-        except Exception as e:
-            self.print(e)
+    def loop(self, num_epochs, use_save_checkpoints=True):
+        _LOGGER.info("Looping...")
 
-    def print(self, s):
-        if not self.quiet:
-            print(s)
-
-    @torch.no_grad()
-    def log_batch(self, pass_loop, iteration, epoch, num_samples, loss, lr, output, targets):
-        self.log[pass_loop]["batches"]["epoch"] += [epoch]
-        self.log[pass_loop]["batches"]["num_samples"] += [num_samples]
-        self.log[pass_loop]["batches"]["loss"] += [loss.item()]
-        self.log[pass_loop]["batches"]["learning_rate"] += [lr]
-
-        for measurer in getattr(self, f"measurers_{pass_loop}"):
-            name_metric = measurer.name_module if hasattr(measurer, "name_module") else type(measurer).__name__
-            metric = measurer(output, targets)
-            self.log[pass_loop]["batches"]["metrics"][name_metric] += [metric.item()]
-            self.writer_tensorboard.add_scalar(f"{pass_loop}|Batches|{name_metric}", metric.item(), iteration)
-        self.writer_tensorboard.add_scalar(f"{pass_loop}|Batches|Loss", loss.item(), iteration)
-        self.writer_tensorboard.add_scalar(f"{pass_loop}|Batches|Learning rate", lr, iteration)
-
-    @torch.no_grad()
-    def log_epoch(self, pass_loop, epoch, num_samples, num_batches):
-        nums_samples = np.asarray(self.log[pass_loop]["batches"]["num_samples"][-num_batches:])
-
-        losses = np.asarray(self.log[pass_loop]["batches"]["loss"][-num_batches:])
-        loss_epoch = np.sum(losses * nums_samples) / num_samples
-        self.log[pass_loop]["epochs"]["loss"] += [loss_epoch]
-
-        lrs = np.asarray(self.log[pass_loop]["batches"]["learning_rate"][-num_batches:])
-        lr_epoch = np.sum(lrs * nums_samples) / num_samples
-        self.log[pass_loop]["epochs"]["learning_rate"] += [lr_epoch]
-
-        for name, metrics in self.log[pass_loop]["batches"]["metrics"].items():
-            metrics_epoch = np.asarray(metrics[-num_batches:])
-            metric_epoch = np.sum(metrics_epoch * nums_samples) / num_samples
-            self.log[pass_loop]["epochs"]["metrics"][name] += [metric_epoch]
-            self.writer_tensorboard.add_scalar(f"{pass_loop}|Epochs|{name}", metric_epoch, epoch)
-        self.writer_tensorboard.add_scalar(f"{pass_loop}|Epochs|Loss", loss_epoch, epoch)
-        self.writer_tensorboard.add_scalar(f"{pass_loop}|Epochs|Learning rate", lr_epoch, epoch)
-
-    @torch.no_grad()
-    def validate_epoch(self, epoch):
-        progress_bar = tqdm(self.dataloader_validation, total=len(self.dataloader_validation), disable=self.quiet)
-        for i, (features, targets) in enumerate(progress_bar, start=1):
-            features = utils_data.move_items(features, self.device)
-            targets = utils_data.move_items(targets, self.device)
-            num_samples = utils_data.count_items(targets)
-
-            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.scaler is not None):
-                output = self.model(features)
-                loss = self.criterion(output, targets)
-            self.optimizer.zero_grad()
-            self.scaler.scale(loss)
-
-            lr = self.optimizer.param_groups[0]["lr"]
-            self.log_batch("validation", len(self.dataloader_validation) * epoch + i, epoch, num_samples, loss, lr, output, targets)
-            if i % config.LOGGING["tqdm"]["frequency"] == 0 and not self.quiet:
-                progress_bar.set_description(f"Validating: Epoch {epoch:03d} | Batch {i:03d} | LR {lr:.6f} | Loss {loss.item():.5f}")
-
-        self.log_epoch("validation", epoch, len(self.dataset_validation), len(self.dataloader_validation))
-
-    def train_epoch(self, epoch):
-        progress_bar = tqdm(self.dataloader_training, total=len(self.dataloader_training), disable=self.quiet)
-        for i, (features, targets) in enumerate(progress_bar, start=1):
-            features = utils_data.move_items(features, self.device)
-            targets = utils_data.move_items(targets, self.device)
-            num_samples = utils_data.count_items(targets)
-
-            with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.scaler is not None):
-                output = self.model(features)
-                loss = self.criterion(output, targets)
-            self.optimizer.zero_grad()
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-
-            lr = self.optimizer.param_groups[0]["lr"]
-            self.log_batch("training", len(self.dataloader_training) * epoch + i, epoch, num_samples, loss, lr, output, targets)
-            if i % config.LOGGING["tqdm"]["frequency"] == 0 and not self.quiet:
-                progress_bar.set_description(f"Training: Epoch {epoch:03d} | Batch {i:03d} | LR {lr:.6f} | Loss {loss.item():.5f}")
-
-        self.log_epoch("training", epoch, len(self.dataset_training), len(self.dataloader_training))
-
-    def loop(self, num_epochs, save_checkpoints=True):
-        self.print("Looping ...")
+        self.validate_epoch(epoch=0, num_epochs=num_epochs)
 
         loss_best = float("inf")
         epoch_loss_best = 0
-        self.model = self.model.to(self.device)
-        self.criterion = self.criterion.to(self.device)
-        for i in range(len(self.measurers_training)):
-            self.measurers_training[i] = self.measurers_training[i].to(self.device)
-        for i in range(len(self.measurers_validation)):
-            self.measurers_validation[i] = self.measurers_validation[i].to(self.device)
-
-        self.validate_epoch(0)
         for epoch in range(1, num_epochs + 1):
-            self.model.train()
-            self.train_epoch(epoch)
+            self.train_epoch(epoch, num_epochs=num_epochs)
 
-            self.model.eval()
-            self.validate_epoch(epoch)
+            self.validate_epoch(epoch, num_epochs=num_epochs)
 
-            loss_epoch = self.log["validation"]["epochs"]["loss"][-1]
-            if self.scheduler is not None:
+            if self.scheduler:
                 self.scheduler.step()
 
+            loss_epoch = self.log["validation"]["epochs"]["loss"][-1]
             if loss_epoch < loss_best:
                 loss_best = loss_epoch
                 epoch_loss_best = epoch
-                if save_checkpoints:
-                    utils_checkpoints.save(self, epoch, name="best")
 
-            if save_checkpoints:
-                utils_checkpoints.save(self, epoch, name="latest")
-                if epoch % config.LOGGING["checkpoint"]["frequency"] == 0 and epoch != 1:
-                    utils_checkpoints.save(self, epoch)
+            if use_save_checkpoints:
+                utils_checkpoints.save(self, epoch, num_epochs=num_epochs, name="latest")
+                if epoch % config.LOGGING["checkpoints"]["frequency"] == 1:
+                    utils_checkpoints.save(self, epoch, num_epochs=num_epochs)
                 if epoch == num_epochs:
-                    utils_checkpoints.save(self, epoch, name="final")
+                    utils_checkpoints.save(self, epoch, num_epochs=num_epochs, name="final")
+                if epoch == epoch_loss_best:
+                    utils_checkpoints.save(self, epoch, num_epochs=num_epochs, name="best")
 
             if "early_stopping" in config.TRAINING and epoch - epoch_loss_best > config.TRAINING["early_stopping"]["patience"]:
-                self.print("Looping stopped early")
+                _LOGGER.info("Looping stopped early")
                 break
 
-        self.print("Looping finished")
+        _LOGGER.info("Looping finished")
+
+    def predict(self, inpt, target):
+        with torch.autocast(device_type=self.device.type, dtype=torch.float16, enabled=self.scaler is not None):
+            output = self.model(inpt)
+            loss = self.criterion(output, target)
+        self.optimizer.zero_grad()
+        loss_scaled = self.scaler.scale(loss)
+
+        return output, loss, loss_scaled
+
+    def measure(self, measurers, output, target):
+        metrics = {}
+        for measurer in measurers:
+            name_metric = measurer.name_module if hasattr(measurer, "name_module") else type(measurer).__name__
+            metric = measurer(output, target)
+            metrics[name_metric] = metric
+
+        return metrics
+
+    def to(self, device):
+        self.model.to(device)
+        self.criterion.to(device)
+        for measurer in self.measurers_training:
+            measurer.to(device)
+        for measurer in self.measurers_validation:
+            measurer.to(device)
+
+    def train(self):
+        self.model.train()
+        self.criterion.train()
+        for measurer in self.measurers_training:
+            measurer.train()
+        for measurer in self.measurers_validation:
+            measurer.train()
+
+    def eval(self):
+        self.model.eval()
+        self.criterion.eval()
+        for measurer in self.measurers_training:
+            measurer.eval()
+        for measurer in self.measurers_validation:
+            measurer.eval()
+
+    @contextmanager
+    def progress(stage, dataloader, epoch, num_batches=None, num_epochs=None):
+        _progress = tqdm(
+            iterable=dataloader,
+            total=num_batches,
+            disable=not _LOGGER.isEnabledFor(logging.INFO),
+            desc=f"{stage.capitalize()}: Epoch {f'{epoch:0{len(str(num_epochs))}d}' if num_epochs is not None else epoch}",
+            dynamic_ncols=True,
+            leave=False,
+        )
+
+        def update(iteration_epoch, loss, loss_epoch, duration):
+            if iteration_epoch % config.LOGGING["tqdm"]["frequency"] == 1 or iteration_epoch == num_batches:
+                _progress.set_postfix(
+                    {
+                        "Batch": f"{f"{iteration_epoch:0{len(str(num_batches))}d}" if num_batches is not None else iteration_epoch} ",
+                        "Duration": f"{duration:.1f}",
+                        "Loss (batch)": f"{loss:.5f}",
+                        "Loss (epoch)": f"{loss_epoch:.5f}",
+                    }
+                )
+                _LOGGER.info(
+                    "".join(
+                        [
+                            f"{stage.capitalize()}: ",
+                            f"Epoch={f"{epoch:0{len(str(num_epochs))}d}" if num_epochs is not None else epoch}, ",
+                            f"Batch={f"{iteration_epoch:0{len(str(num_batches))}d}" if num_batches is not None else iteration_epoch}, ",
+                            f"Duration={duration:.1f}, ",
+                            f"Loss_batch={loss:.5f}, ",
+                            f"Loss_epoch={loss_epoch:.5f}",
+                        ]
+                    )
+                )
+
+        try:
+            yield _progress, update
+        finally:
+            _progress.close()
+
+    @torch.no_grad()
+    def validate_epoch(self, epoch, num_epochs=None):
+        time_start_epoch = time.time()
+
+        self.to(self.device)
+        self.eval()
+
+        num_batches = len(self.dataloader_validation)
+        count_samples = 0
+        loss_total = 0.0
+        with progress("validation", self.dataloader_validation, epoch, num_batches, num_epochs) as (progress, update_progress):
+            for iteration_epoch, (inpt, target) in enumerate(progress, start=1):
+                time_start = time.time()
+
+                inpt = utils_data.move_batch(inpt, self.device)
+                target = utils_data.move_batch(target, self.device)
+
+                output, loss, loss_scaled = self.predict(inpt, target)
+
+                metrics = self.measure(self.measurers_validation, output, target)
+                iteration = num_batches * epoch + iteration_epoch
+                num_samples = utils_data.count_items(target)
+                loss = loss.item()
+                time_end = time.time()
+                duration = time_end - time_start
+                self.log.add_batch("validation", iteration, epoch, num_samples, inpt, target, output, loss, metrics, duration)
+
+                count_samples += num_samples
+                loss_total += loss * num_samples
+                loss_epoch = loss_total / count_samples
+
+                update_progress(iteration_epoch, loss, loss_epoch, duration)
+
+        time_end_epoch = time.time()
+        duration_epoch = time_end_epoch - time_start_epoch
+        self.log.add_epoch("validation", epoch, len(self.dataset_validation), num_batches, duration_epoch)
+
+    def train_epoch(self, epoch, num_epochs=None):
+        time_start_epoch = time.time()
+
+        self.to(self.device)
+        self.train()
+
+        num_batches = len(self.dataloader_training)
+        count_samples = 0
+        loss_total = 0.0
+        with progress("training", self.dataloader_training, epoch, num_batches, num_epochs) as (progress, update_progress):
+            for iteration_epoch, (inpt, target) in enumerate(progress, start=1):
+                time_start = time.time()
+
+                inpt = utils_data.move_batch(inpt, self.device)
+                target = utils_data.move_batch(target, self.device)
+
+                output, loss, loss_scaled = self.predict(inpt, target)
+
+                loss_scaled.backward()
+
+                if "norm_gradient_max" in config.TRAINING["norm_gradient_max"]:
+                    norm_gradient = torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=config.TRAINING["norm_gradient_max"])
+
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+
+                if not "norm_gradient_max" in config.TRAINING["norm_gradient_max"]:
+                    norm_gradient = torch.nn.utils.get_total_norm([parameter.grad for parameter in self.model.parameters() if parameter.grad is not None])
+
+                metrics = self.measure(self.measurers_training, output, target)
+                iteration = num_batches * epoch + iteration_epoch
+                num_samples = utils_data.count_items(target)
+                loss = loss.item()
+                time_end = time.time()
+                duration = time_end - time_start
+                learning_rate = self.optimizer.param_groups[0]["lr"]
+                self.log.add_batch("training", iteration, epoch, num_samples, inpt, target, output, loss, metrics, duration, learning_rate, norm_gradient)
+
+                count_samples += num_samples
+                loss_total += loss * num_samples
+                loss_epoch = loss_total / count_samples
+
+                update_progress(iteration_epoch, loss, loss_epoch, duration)
+
+        time_end_epoch = time.time()
+        duration_epoch = time_end_epoch - time_start_epoch
+        self.log.add_epoch("training", epoch, len(self.dataset_validation), num_batches, duration_epoch)

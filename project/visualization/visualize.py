@@ -1,15 +1,20 @@
+import logging
+
 import matplotlib.gridspec as gridspec
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-import self_supervised_learning_of_depth_and_motion.libs.utils_data as utils_data
-import self_supervised_learning_of_depth_and_motion.libs.utils_visualization as utils_visualization
+import project.config as config
+import project.libs.utils_data as utils_data
+import project.libs.utils_visualization as utils_visualization
+
+
+_LOGGER = logging.getLogger(__name__)
 
 
 def visualize_images(images, labels=None, indices=None, path_save=None):
-    din_a4 = np.array([210, 297]) / 25.4
-    fig = plt.figure(figsize=din_a4)
+    fig = plt.figure(figsize=utils_visualization.FIGSIZE_A4)
 
     def subplot_image(image, i):
         ax = plt.gca()
@@ -22,7 +27,7 @@ def visualize_images(images, labels=None, indices=None, path_save=None):
                 title += " | "
             if labels is not None:
                 title += rf"{labels[i]}"
-            ax.set_title(title, fontsize=9)
+            ax.set_title(title, fontsize=config._SIZE_FONT)
         ax.set_axis_off()
 
         image_vis = (np.clip(image, 0.0, 1.0) * 255).astype(np.uint8)
@@ -36,8 +41,11 @@ def visualize_images(images, labels=None, indices=None, path_save=None):
         subplot_image(image, i)
 
     plt.tight_layout()
+
     if path_save:
         plt.savefig(path_save)
+        _LOGGER.info(f"Plot saved to path: {path_save}")
+
     plt.show()
 
 
@@ -56,7 +64,7 @@ def visualize_images_pairs(images1, images2, labels=None, indices=None, path_sav
                 title += " | "
             if labels is not None:
                 title += rf"label: {labels[i]}"
-            ax.set_title(title, fontsize=9)
+            ax.set_title(title, fontsize=config._SIZE_FONT)
         ax.set_axis_off()
 
         image_vis = (np.clip(image, 0.0, 1.0) * 255).astype(np.uint8)
@@ -71,14 +79,16 @@ def visualize_images_pairs(images1, images2, labels=None, indices=None, path_sav
         subplot_image(image, i)
 
     plt.tight_layout()
+
     if path_save:
         plt.savefig(path_save)
+        _LOGGER.info(f"Plot saved to path: {path_save}")
+
     plt.show()
 
 
 def visualize_kernels(kernels, channel=0):
-    din_a4 = np.array([210, 297]) / 25.4
-    fig = plt.figure(figsize=din_a4)
+    fig = plt.figure(figsize=utils_visualization.FIGSIZE_A4)
 
     def subfigure_kernels(subfig, name, kernels_single):
         subfig.suptitle(name)
@@ -111,8 +121,7 @@ def visualize_kernels(kernels, channel=0):
 
 
 def visualize_featuremaps(featuremaps):
-    din_a4 = np.array([210, 297]) / 25.4
-    fig = plt.figure(figsize=din_a4)
+    fig = plt.figure(figsize=utils_visualization.FIGSIZE_A4)
 
     def subfigure_featuremaps(subfig, name, featuremaps_single):
         subfig.suptitle(name)
@@ -143,28 +152,26 @@ def visualize_featuremaps(featuremaps):
 
 
 @torch.no_grad()
-def visualize_interpolation_grid(model, shape_image, num_channels_latent, label_input, xrange=(-2, 2), yrange=(-2, 2), use_unnormalize=False, resolution=12, path_save=None):
-    din_a4 = np.array([210, 297]) / 25.4
-    fig = plt.figure(figsize=din_a4)
+def visualize_interpolation_grid(model, shape_image, num_channels_latent, label_input, xrange=(-2, 2), yrange=(-2, 2), use_denormalize=False, resolution=12, path_save=None):
+    fig = plt.figure(figsize=utils_visualization.FIGSIZE_A4)
 
     def subplot_interpolation_grid():
         ax = plt.gca()
 
-        ax.set_title(f"Equispaced points from latent space (2D projection)", fontsize=9)
+        ax.set_title(f"Equispaced points from latent space (2D projection)", fontsize=config._SIZE_FONT)
 
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         grid = np.empty((3, resolution * shape_image[0], resolution * shape_image[1]))
         for i, y in enumerate(np.linspace(*yrange, resolution)):
             for j, x in enumerate(np.linspace(*xrange, resolution)):
-                code_latent = torch.zeros(num_channels_latent, device=device)[None, ...]
+                embedding = torch.zeros(num_channels_latent, device=device)[None, ...]
+                embedding[:, : embedding.shape[1] // 2] = x
+                embedding[:, embedding.shape[1] // 2 :] = y
 
-                code_latent[:, : code_latent.shape[1] // 2] = x
-                code_latent[:, code_latent.shape[1] // 2 :] = y
+                output = model.decode(embedding, label_input).cpu()
 
-                output = model.decode(code_latent, label_input).cpu()
-
-                if use_unnormalize:
-                    output = utils_data.unnormalize(output, split="test")
+                if use_denormalize:
+                    output = utils_data.denormalize(output, split="test")
 
                 grid[:, (resolution - 1 - i) * shape_image[0] : (resolution - i) * shape_image[0], j * shape_image[1] : (j + 1) * shape_image[1]] = output
 
@@ -175,6 +182,9 @@ def visualize_interpolation_grid(model, shape_image, num_channels_latent, label_
     subplot_interpolation_grid()
 
     plt.tight_layout()
+
     if path_save:
         plt.savefig(path_save)
+        _LOGGER.info(f"Plot saved to path: {path_save}")
+
     plt.show()

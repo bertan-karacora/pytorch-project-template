@@ -1,8 +1,8 @@
 import argparse
 from pathlib import Path
 
-import self_supervised_learning_of_depth_and_motion.config as config
-from self_supervised_learning_of_depth_and_motion.optimization_hyperparams.optimizer_hyperparams import OptimizerHyperparams
+import project.config as config
+from project.optimization_hyperparams.optimizer_hyperparams import OptimizerHyperparams
 
 
 def parse_args():
