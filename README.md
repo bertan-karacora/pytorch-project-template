@@ -23,7 +23,7 @@ cd pytorch-project-template
 
 ## Installation
 
-You can configure your setup using `config.sh`, specifying the desired versions of Ubuntu, CUDA, CudNN, Python, Pip, Setuptools and Wheel.
+You can configure your setup using `env.sh`, specifying the desired versions of Ubuntu, CUDA, CudNN, Python, Pip, Setuptools and Wheel.
 
 ### Local
 
@@ -55,5 +55,5 @@ container/run.sh
 You may provide any command including arguments directly, e.g.:
 
 ```bash
-container/run.sh -a echo "test" && scripts/start_jupyter.sh
+container/run.sh echo "test" && scripts/start_jupyter.sh
 ```

@@ -153,7 +153,11 @@ ARG USER=user \
 COPY . "/home/$USER/repos/pytorch-project-template"
 RUN chown --recursive "$USER:$USER" "/home/$USER"
 
-# Setup run
+# Build
 WORKDIR "/home/$USER/repos/pytorch-project-template"
+RUN pip install --editable .
+
+# Setup run
+USER "$USER"
 ENTRYPOINT ["/bin/bash", "-c"]
 CMD ["bash"]
