@@ -23,8 +23,12 @@ import random
 import numpy as np
 import torch
 
-import project.libs.utils_io as utils_io
+try:
+    import torch_geometric as torch_geo
+except ImportError:
+    torch_geo = None
 
+import project.libs.utils_io as utils_io
 
 _PATH_CONFIG_PACKAGE = str(resources.files(__package__) / "config.yaml")
 _SEED_RNGS = 42
@@ -110,6 +114,8 @@ def seed_rngs():
     random.seed(_SEED_RNGS)
     np.random.seed(_SEED_RNGS)
     torch.manual_seed(_SEED_RNGS)
+    if torch_geo is not None:
+        torch_geo.utils.set_random_seed(_SEED_RNGS)
 
     logging.getLogger(__name__).info(f"Seeded RNGs with seed: {_SEED_RNGS}")
 

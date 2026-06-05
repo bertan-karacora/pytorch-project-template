@@ -13,7 +13,6 @@ import project.libs.utils_data as utils_data
 import project.libs.utils_torch as utils_torch
 from project.training.log import Log
 
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -172,6 +171,139 @@ class Trainer:
             yield _progress, update
         finally:
             _progress.close()
+
+    # @torch.no_grad()
+    # def log_batch(pass_loop, epoch, num_samples, loss, lr, norm_grad=None):
+    #     log[pass_loop]["batches"]["epoch"].append(epoch)
+    #     log[pass_loop]["batches"]["num_samples"].append(num_samples)
+    #     log[pass_loop]["batches"]["loss"].append(loss)
+    #     log[pass_loop]["batches"]["learning_rate"].append(lr)
+    #     if pass_loop == "training":
+    #         log[pass_loop]["batches"]["metrics"]["norm_grad"].append(norm_grad)
+
+    # @torch.no_grad()
+    # def log_epoch(pass_loop, num_samples, num_batches):
+    #     nums_samples = np.asarray(log[pass_loop]["batches"]["num_samples"][-num_batches:])
+
+    #     losses = np.asarray(log[pass_loop]["batches"]["loss"][-num_batches:])
+    #     loss_epoch = np.sum(losses * nums_samples) / num_samples
+    #     log[pass_loop]["epochs"]["loss"].append(loss_epoch)
+
+    #     lrs = np.asarray(log[pass_loop]["batches"]["learning_rate"][-num_batches:])
+    #     lr_epoch = np.sum(lrs * nums_samples) / num_samples
+    #     log[pass_loop]["epochs"]["learning_rate"].append(lr_epoch)
+
+    #     if pass_loop == "training":
+    #         norms_grad = np.asarray(log[pass_loop]["batches"]["metrics"]["norm_grad"][-num_batches:])
+    #         norm_grad_epoch = np.sum(norms_grad * nums_samples) / num_samples
+    #         log[pass_loop]["epochs"]["metrics"]["norm_grad"].append(norm_grad_epoch)
+
+    # def train_epoch(epoch):
+    #     loss_total = 0.0
+    #     count = 0
+    #     progress_bar = tqdm(dataloader_training, total=len(dataloader_training))
+    #     for i, data in enumerate(progress_bar, start=1):
+    #         data = data.to(device)
+
+    #         optimizer.zero_grad()
+
+    #         output = model(data)
+
+    #         # In-degree for each node (same as out-degree since we use undirected edges anyway)
+    #         target_degree = torch_geo.utils.degree(data["edge_index"][1], num_nodes=data.num_nodes)[:, None]
+    #         target = dict(
+    #             degrees=target_degree,
+    #             features_points=output["features_points_raw"],
+    #             features_class=data["embeddings_class"],
+    #             positions=torch.cat((data["pos"], data["size"]), dim=1),
+    #             neighbors=None,
+    #         )
+
+    #         loss = criterion(output, target)
+
+    #         loss.backward()
+    #         if USE_CLIP_GRAD:
+    #             norm_grad = torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=MAX_NORM_GRAD)
+    #         optimizer.step()
+
+    #         num_samples = data["ptr"].size(0) - 1
+    #         lr = optimizer.param_groups[0]["lr"]
+    #         if not USE_CLIP_GRAD:
+    #             norm_grad = torch.nn.utils.get_total_norm([p.grad for p in model.parameters() if p.grad is not None])
+    #         log_batch("training", epoch, num_samples, loss.item(), lr, norm_grad.item())
+
+    #         count += num_samples
+    #         loss_total += loss.item() * num_samples
+    #         loss_epoch = loss_total / count
+
+    #         if i % NUM_STEPS_LOGGING == 1 or i == len(dataloader_training):
+    #             progress_bar.set_description(f"Training: Epoch {epoch:03d} | Batch {i:03d} | LR {lr:.8f} | Loss {loss_epoch:.5f}")
+
+    #     log_epoch("training", len(dataset_training), len(dataloader_training))
+
+    # @torch.no_grad()
+    # def validate_epoch(epoch):
+    #     loss_total = 0.0
+    #     count = 0
+    #     progress_bar = tqdm(dataloader_validation, total=len(dataloader_validation))
+    #     for i, data in enumerate(progress_bar, start=1):
+    #         data = data.to(device)
+
+    #         output = model(data)
+
+    #         # In-degree for each node (same as out-degree since we use undirected edges anyway)
+    #         target_degree = torch_geo.utils.degree(data["edge_index"][1], num_nodes=data.num_nodes)[:, None]
+    #         target = dict(
+    #             degrees=target_degree,
+    #             features_points=output["features_points_raw"],
+    #             features_class=data["embeddings_class"],
+    #             positions=torch.cat((data["pos"], data["size"]), dim=1),
+    #             neighbors=None,
+    #         )
+
+    #         loss = criterion(output, target)
+
+    #         num_samples = data["ptr"].size(0) - 1
+    #         lr = optimizer.param_groups[0]["lr"]
+    #         log_batch("validation", epoch, num_samples, loss.item(), lr)
+
+    #         count += num_samples
+    #         loss_total += loss.item() * num_samples
+    #         loss_epoch = loss_total / count
+
+    #         if i % NUM_STEPS_LOGGING == 1 or i == len(dataloader_validation):
+    #             progress_bar.set_description(f"Validation: Epoch {epoch:03d} | Batch {i:03d} | LR {lr:.8f} | Loss {loss_epoch:.5f}")
+
+    #     log_epoch("validation", len(dataset_validation), len(dataloader_validation))
+
+    # model = model.to(device)
+    # criterion = criterion.to(device)
+
+    # loss_best = float("inf")
+    # epoch_loss_best = 0
+    # validate_epoch(0)
+    # for epoch in range(1, NUM_EPOCHS_PRETRAINING + 1):
+    #     model.train()
+    #     train_epoch(epoch)
+
+    #     model.eval()
+    #     validate_epoch(epoch)
+
+    #     loss_epoch = log["validation"]["epochs"]["loss"][-1]
+    #     if scheduler is not None:
+    #         scheduler.step()
+
+    #     if loss_epoch < loss_best:
+    #         loss_best = loss_epoch
+    #         epoch_loss_best = epoch
+
+    #         save(epoch, model, name="gae_best")
+
+    #     save(epoch, model, name="gae_latest")
+
+    #     if USE_EARLY_STOPPING and epoch - epoch_loss_best > PATIENCE_EARLY_STOPPING_PRETRAINING:
+    #         print("Looping stopped early")
+    #         break
 
     @torch.no_grad()
     def validate_epoch(self, epoch, num_epochs=None):

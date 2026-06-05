@@ -142,6 +142,12 @@ COPY requirements.txt /tmp/requirements.txt
 RUN pip install --no-cache-dir --requirement /tmp/requirements.txt && \
     rm -rf /tmp/*
 
+# RUN pip install --no-cache-dir --find-links https://data.pyg.org/whl/torch-2.8.0+cu128.html \
+#     pyg_lib==0.4.0 \
+#     torch_scatter==2.1.2 \
+#     torch_sparse==0.6.18 \
+#     torch_cluster==1.6.3 \
+#     torch_spline_conv==1.2.2
 
 
 # ========================================
